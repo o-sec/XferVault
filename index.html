@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>XferVault</title>
+  <script>
+    // Run on page load to set theme from localStorage
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <button id="menuToggle" class="menu-button">
+      <svg x="0px" y="0px" width="50" height="50" viewBox="0 0 50 50">
+	<path d="M 5 8 A 2.0002 2.0002 0 1 0 5 12 L 45 12 A 2.0002 2.0002 0 1 0 45 8 L 5 8 z M 5 23 A 2.0002 2.0002 0 1 0 5 27 L 45 27 A 2.0002 2.0002 0 1 0 45 23 L 5 23 z M 5 38 A 2.0002 2.0002 0 1 0 5 42 L 45 42 A 2.0002 2.0002 0 1 0 45 38 L 5 38 z"></path>
+	</svg>
+    </button>
+    <h1>XferVault</h1>
+    <div class="controls">
+      <div class="search-wrapper">
+        <input type="text" id="search" placeholder="Search..." />
+        <button id="clearSearch">&times;</button>
+      </div>
+    </div>
+  </header>
+  <!-- Delete Confirmation modal -->
+  <div id="confirmModal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeConfirmModal" class="close">&times;</span>
+      <p id="confirmText" class="mb-4">Are you sure?</p>
+        <div class="flex justify-end space-x-2">
+          <button id="cancelBtn">Cancel</button>
+          <button id="confirmBtn">OK</button>
+        </div>
+    </div>
+  </div>
+  <!-- Toast --> 
+  <div id="toast" class="toast"></div>
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar hidden">
+    <button id="closeSidebar" class="close-sidebar">&times;</button>
+    <button id="addBtn">Add Command / Category</button>
+    <button id="themeToggle">
+      <svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+      </svg>
+    </button>
+    <div id="ipPortForm" class="ip-port-form">
+      <div class="field-group">
+        <label class="field-label">IP</label>
+        <input type="text" id="ipInput" placeholder="Enter IP">
+      </div>
+    <div class="field-group">
+      <label class="field-label">Port</label>
+      <input type="text" id="portInput" placeholder="Enter Port" value="4444">
+      <button id="incPort" class="inc-btn">+1</button>
+    </div>
+    <button id="replaceBtn">Replace Placeholders</button>
+    </div>
+  </aside>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" data-platform="windows">Windows</button>
+    <button class="tab" data-platform="linux">Linux</button>
+  </div>
+
+  <main id="content"></main>
+
+  <!-- Add Command/Category  Modal -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2 class="modal-title">Add Command / Category</h2>
+      <div id="backendStatus" class="warning-message"></div>
+      <form id="addForm">
+        <div class="form-group">
+          <select id="platform" required>
+            <option value="windows">Windows</option>
+            <option value="linux">Linux</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <input type="text" id="category" placeholder="Category (e.g., Web Clients)" required />
+        </div>
+        <div class="form-group">
+          <textarea id="command" placeholder="Command" required></textarea>
+        </div>
+        <button type="submit">Add</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Load data -->
+  <script src="data.js"></script>
+
+  <script>
+    if (typeof DefaultData === "undefined") {
+      var DefaultData = {}; // fallback if data.js is missing
+    }
+    
+    const data = JSON.parse(JSON.stringify(DefaultData));
+    let currentPlatform = "windows";
+
+    const content = document.getElementById("content");
+    const searchInput = document.getElementById("search");
+    const clearSearch = document.getElementById("clearSearch");
+    const tabs = document.querySelectorAll(".tab");
+    const themeToggle = document.getElementById("themeToggle");
+    const modal = document.getElementById("modal");
+    const addBtn = document.getElementById("addBtn");
+    const closeModal = document.getElementById("closeModal");
+    const addForm = document.getElementById("addForm");
+    const backendStatus = document.getElementById("backendStatus");
+    const menuToggle = document.getElementById("menuToggle");
+    const sidebar = document.getElementById("sidebar");
+    const closeSidebar = document.getElementById("closeSidebar");
+    const confirmModal = document.getElementById("confirmModal");
+    const confirmText = document.getElementById("confirmText");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const confirmBtn = document.getElementById("confirmBtn");
+    const closeConfirmModal = document.getElementById("closeConfirmModal");
+    
+    // function to copy commands 
+    function copyToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        // Modern API
+        navigator.clipboard.writeText(text).catch(err => {
+          console.error("Clipboard API failed:", err);
+        });
+      } else {
+        // Fallback for older devices/browsers
+        let cptextArea = document.createElement("textarea");
+        cptextArea.value = text;
+        cptextArea.style.position = "fixed";  // Prevent scrolling to bottom
+        cptextArea.style.left = "-9999px";
+        document.body.appendChild(cptextArea);
+        cptextArea.focus();
+        cptextArea.select();
+   
+        try {
+          document.execCommand("copy");
+        } catch (err) {
+          console.error("Fallback copy failed:", err);
+        }    
+        document.body.removeChild(cptextArea);
+      }
+    }
+    
+    // show confirmation pop-up when delete.
+    function showConfirmation(message, onConfirm) {
+      confirmText.innerHTML = message;
+      confirmModal.classList.remove("hidden");
+document
+      const confirmHandler = () => {
+        onConfirm();
+        closeModal();
+      };
+
+      function closeModal() {
+        confirmModal.classList.add("hidden");
+        confirmBtn.removeEventListener("click", confirmHandler);
+      }
+
+      confirmBtn.addEventListener("click", confirmHandler);
+      cancelBtn.addEventListener("click", closeModal);
+    }
+
+    // show a toast message
+    function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      if (!toast) return;
+        toast.textContent = message;
+        // Remove any previous type classes
+        toast.className = "toast"; // reset to base
+        // Add type class
+        toast.classList.add(`toast-${type}`);
+        toast.classList.add("show");
+  
+        setTimeout(() => {
+        toast.classList.remove("show");
+        }, 1000);
+    }
+    
+    // escape html special chars
+    function escapeHTML(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
+    // render the main content 
+    function render() {
+      content.innerHTML = "";
+      const searchTerm = searchInput.value.toLowerCase();
+      const platformData = data[currentPlatform] || {};
+
+      for (const [category, commands] of Object.entries(platformData)) {
+        const filtered = commands.filter(cmd =>
+          cmd.toLowerCase().includes(searchTerm) || category.toLowerCase().includes(searchTerm)
+        );
+        if (filtered.length === 0) continue;
+
+        const section = document.createElement("section");
+        const title = document.createElement("h2");
+        title.textContent = category;
+
+        const deleteCategoryBtn = document.createElement("button");
+        deleteCategoryBtn.classList.add("delete-category");
+        deleteCategoryBtn.setAttribute("data-category", category);
+        deleteCategoryBtn.textContent = "Delete";
+        title.appendChild(deleteCategoryBtn);
+        section.appendChild(title);
+
+        filtered.forEach(cmd => {
+        const wrapper = document.createElement("div");
+        wrapper.classList.add("code-block");
+        wrapper.innerHTML = `
+          <div class="pre-wrapper">
+            <pre><code>${escapeHTML(cmd)}</code></pre>
+            <div class="action-buttons">
+              <button class="delete" data-category="${category}" data-command="${encodeURIComponent(cmd)}" aria-label="Delete">Delete
+              </button>
+              <button class="copy" aria-label="Copy">
+                <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2
+                    M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        `;
+        section.appendChild(wrapper);
+        });
+        content.appendChild(section);
+      }
+    }
+
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        tabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        currentPlatform = tab.dataset.platform;
+        render();
+      });
+    });
+    // set the themeTogle button icon
+    if (localStorage.getItem('theme') === 'dark') {
+        themeToggle.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>';
+    } else {
+      themeToggle.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>';
+    }
+    // Theme toggle click
+    themeToggle.addEventListener('click', () => {
+      const isDark = document.documentElement.classList.toggle('dark');
+
+      // Save preference
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+      // Update icon
+      themeToggle.innerHTML = isDark
+        ? '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>'
+        : '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>';
+    });
+    
+
+    searchInput.addEventListener("input", render);
+    clearSearch.addEventListener("click", () => {
+      searchInput.value = "";
+      render();
+    });
+    
+    closeConfirmModal.addEventListener('click', () => {
+      confirmModal.classList.add('hidden');
+    });
+    
+    content.addEventListener("click", (e) => {
+      if (e.target.classList.contains("copy")) {
+        const copyBtn = e.target.closest(".copy");
+        const wrapper = copyBtn.closest(".pre-wrapper");
+        const code = wrapper.querySelector("pre code")?.textContent;
+        
+        if (code) {
+          copyToClipboard(code);
+          showToast("Command copied to clipboard!", "success");
+        }
+      }
+
+      if (e.target.classList.contains("delete")) {
+        const category = e.target.getAttribute("data-category");
+        const command = decodeURIComponent(e.target.getAttribute("data-command"));
+        const truncatedCommand = command.length > 50 ? command.substring(0, 50) + "..." : command;
+        const message = `Delete command: <code class="highlight-command">${truncatedCommand}</code><br>  From category: <span class="highlight-category">${category}</span> ?`;
+        
+        showConfirmation(message, () => {
+          fetch("http://127.0.0.1:9090/delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ platform: currentPlatform, category: category, command: String(command)})
+          })
+          .then(res => res.json())
+          .then(res => {
+            if (res.success) {
+              showToast("Command deleted.", "Success");
+              setTimeout(() => {
+                location.reload();
+              }, 1000);
+            } else {
+              showToast(res.error, "Error");
+            }
+          })
+          .catch(() => showToast("Backend not running.", "Error"));
+        });      
+      };
+
+      if (e.target.classList.contains("delete-category")) {
+        const category = e.target.getAttribute("data-category");
+        const message = `Delete ENTIRE category: <span class="highlight-category">${category}</span> ? \n This will delete all commands inside. `;
+        
+        showConfirmation(message, () => {
+          fetch("http://127.0.0.1:9090/delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ platform: currentPlatform, category })
+          })
+          .then(res => res.json())
+          .then(res => {
+            if (res.success) {
+              showToast("Category deleted.", "Success");
+              setTimeout(() => {
+                location.reload();
+              }, 1000);
+            } else {
+              showToast(res.error, "Error");
+            }
+          })
+          .catch(() => showToast("Backend not running.", "Error"));
+        });
+      };
+
+    });
+
+    addBtn.addEventListener("click", () => {
+      modal.classList.remove("hidden");
+      backendStatus.innerHTML = "Checking backend status...";
+
+      fetch("http://127.0.0.1:9090/add.php")
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(json => {
+          if (json.status === "online") {
+            backendStatus.innerHTML = `
+              ✅ Backend server is <strong>running</strong>.<br>
+              You can safely add new commands.
+            `;
+          } else {
+            showToast("connection not being established !", "Erorr")
+            throw new Error();
+          }
+        })
+        .catch(() => {
+          backendStatus.innerHTML = `
+            ⚠️ Backend server is not running. Commands won't be saved.<br>
+            Please run:<br>
+            <code>php -S 127.0.0.1:9090</code>
+          `;
+        });
+    });
+
+    closeModal.addEventListener("click", () => {
+      modal.classList.add("hidden");
+    });
+
+    modal.addEventListener("click", e => {
+      if (e.target === modal) modal.classList.add("hidden");
+    });
+
+    addForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const platform = document.getElementById("platform").value;
+      const category = document.getElementById("category").value.trim();
+      const command = document.getElementById("command").value.trim();
+      if (!platform || !category || !command) return;
+
+      fetch("http://127.0.0.1:9090/add.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform, category, command })
+      })
+      .then(res => res.json())
+      .then(res => {
+        if (res.status === "Command added") {
+          showToast("Command added successfully.", "Success");
+          setTimeout(() => {
+            location.reload();
+          }, 1000);
+        } else {
+          showToast(res.error, "Error");
+        }
+      })
+      .catch(() => {
+        showToast("Backend not running. Command not saved.", "Error");
+      });
+
+      modal.classList.add("hidden");
+      addForm.reset();
+    });
+
+    render();
+    
+
+    menuToggle.addEventListener("click", () => {
+      sidebar.classList.add("visible");
+      sidebar.classList.remove("hidden");
+    });
+
+    closeSidebar.addEventListener("click", () => {
+      sidebar.classList.remove("visible");
+      sidebar.classList.add("hidden");
+    });
+    
+    window.addEventListener("click", e => {
+    // If sidebar is open and click is outside the sidebar
+      if (sidebar.classList.contains("visible") && !sidebar.contains(e.target) && e.target !== menuToggle) {
+        sidebar.classList.remove("visible");
+        sidebar.classList.add("hidden");
+      }
+    });
+
+
+
+    // Increment port
+    document.getElementById("incPort").addEventListener("click", () => {
+      const portInput = document.getElementById("portInput");
+      const current = parseInt(portInput.value) || 4444;
+      portInput.value = current + 1;
+    });
+
+    // Replace <IP> and <PORT> in all visible code blocks
+    document.getElementById("replaceBtn").addEventListener("click", () => {
+      const ip = document.getElementById("ipInput").value.trim();
+      const port = document.getElementById("portInput").value.trim();
+
+      if (!ip || !port) {
+        showToast("IP and Port must be filled!", "Error");
+        return;
+      }
+
+      const codeBlocks = document.querySelectorAll("pre code");
+
+      codeBlocks.forEach(code => {
+        const original = code.getAttribute("data-original") || code.textContent;
+        const updated = original.replace(/#IP/g, ip).replace(/#PORT/g, port);
+
+        code.textContent = updated;
+
+        // Save original so we can reset/replace again
+        code.setAttribute("data-original", original);
+      });
+
+      showToast("Placeholders replaced!", "Success");
+    });
+
+  </script>
+</body>
+</html>
