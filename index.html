@@ -2,471 +2,587 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>XferVault</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070406" />
+  <meta name="description" content="XferVault — an offline, searchable reference of validated file-transfer commands for Windows and Linux." />
+  <title>XferVault — File Transfer Arsenal</title>
   <script>
-    // Run on page load to set theme from localStorage
-    if (localStorage.getItem('theme') === 'dark') {
-      document.documentElement.classList.add('dark');
-    }
+    // Apply saved (or OS) theme before first paint to avoid a flash.
+    (function () {
+      try {
+        var saved = localStorage.getItem("theme");
+        var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (dark) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
   </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <button id="menuToggle" class="menu-button">
-      <svg x="0px" y="0px" width="50" height="50" viewBox="0 0 50 50">
-	<path d="M 5 8 A 2.0002 2.0002 0 1 0 5 12 L 45 12 A 2.0002 2.0002 0 1 0 45 8 L 5 8 z M 5 23 A 2.0002 2.0002 0 1 0 5 27 L 45 27 A 2.0002 2.0002 0 1 0 45 23 L 5 23 z M 5 38 A 2.0002 2.0002 0 1 0 5 42 L 45 42 A 2.0002 2.0002 0 1 0 45 38 L 5 38 z"></path>
-	</svg>
-    </button>
-    <h1>XferVault</h1>
-    <div class="controls">
+  <header class="app-header">
+    <div class="header-left">
+      <button id="menuToggle" class="icon-btn menu-button" type="button" aria-label="Open tools menu" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+
+      <a class="brand" href="#" aria-label="XferVault home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Xfer<span>Vault</span></span>
+          <span class="brand-sub">file transfer arsenal</span>
+        </span>
+      </a>
+    </div>
+
+    <div class="header-right">
       <div class="search-wrapper">
-        <input type="text" id="search" placeholder="Search..." />
-        <button id="clearSearch">&times;</button>
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="Search commands or categories…" autocomplete="off" spellcheck="false" aria-label="Search commands" />
+        <button id="clearSearch" class="clear-search" type="button" aria-label="Clear search">&times;</button>
+        <kbd class="search-kbd" aria-hidden="true">/</kbd>
       </div>
+
+      <button id="addBtn" class="btn btn-primary add-btn" type="button" aria-label="Add command">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Add</span>
+      </button>
+
+      <button id="themeToggle" class="icon-btn theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="false">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
     </div>
   </header>
-  <!-- Delete Confirmation modal -->
-  <div id="confirmModal" class="modal hidden">
-    <div class="modal-content">
-      <span id="closeConfirmModal" class="close">&times;</span>
-      <p id="confirmText" class="mb-4">Are you sure?</p>
-        <div class="flex justify-end space-x-2">
-          <button id="cancelBtn">Cancel</button>
-          <button id="confirmBtn">OK</button>
-        </div>
+
+  <div class="toolbar">
+    <div class="stats" aria-live="polite">
+      <span class="stat"><strong id="statCommands">0</strong> commands</span>
+      <span class="stat-divider" aria-hidden="true"></span>
+      <span class="stat"><strong id="statCategories">0</strong> categories</span>
     </div>
+    <nav class="tabs" role="tablist" aria-label="Platform">
+      <button class="tab active" type="button" role="tab" aria-selected="true" data-platform="windows">Windows</button>
+      <button class="tab" type="button" role="tab" aria-selected="false" data-platform="linux">Linux</button>
+    </nav>
+    <span class="hint"><kbd>/</kbd> to search</span>
   </div>
-  <!-- Toast --> 
-  <div id="toast" class="toast"></div>
-  <!-- Sidebar -->
-  <aside id="sidebar" class="sidebar hidden">
-    <button id="closeSidebar" class="close-sidebar">&times;</button>
-    <button id="addBtn">Add Command / Category</button>
-    <button id="themeToggle">
-      <svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg">
-        <path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
-      </svg>
-    </button>
-    <div id="ipPortForm" class="ip-port-form">
-      <div class="field-group">
-        <label class="field-label">IP</label>
-        <input type="text" id="ipInput" placeholder="Enter IP">
-      </div>
-    <div class="field-group">
-      <label class="field-label">Port</label>
-      <input type="text" id="portInput" placeholder="Enter Port" value="4444">
-      <button id="incPort" class="inc-btn">+1</button>
+
+  <main id="content" aria-live="polite"></main>
+
+  <footer class="app-footer">
+    <span>XferVault · offline file-transfer reference</span>
+    <span>Built for red teams, pentesters &amp; CTF players</span>
+  </footer>
+
+  <div id="scrim" class="scrim" aria-hidden="true"></div>
+
+  <aside id="sidebar" class="sidebar" aria-label="Transfer tools">
+    <div class="sidebar-head">
+      <span class="sidebar-title">Transfer tools</span>
+      <button id="closeSidebar" class="icon-btn close-sidebar" type="button" aria-label="Close tools menu">&times;</button>
     </div>
-    <button id="replaceBtn">Replace Placeholders</button>
+    <p class="sidebar-desc">Fill in the target IP and port, then apply them to every visible command.</p>
+
+    <div id="ipPortForm" class="ip-port-form">
+      <label class="field-group">
+        <span class="field-label">IP</span>
+        <input type="text" id="ipInput" placeholder="10.10.14.5" autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="field-group">
+        <span class="field-label">Port</span>
+        <span class="port-wrap">
+          <input type="text" id="portInput" placeholder="4444" value="4444" inputmode="numeric" autocomplete="off" />
+          <button id="incPort" class="inc-btn" type="button" aria-label="Increase port by one">+1</button>
+        </span>
+      </label>
+      <button id="replaceBtn" class="btn btn-primary" type="button">Replace placeholders</button>
+    </div>
+
+    <div class="sidebar-tip">
+      <strong>Placeholders</strong>
+      <span>Commands use <code>#IP</code> and <code>#PORT</code>.</span>
     </div>
   </aside>
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" data-platform="windows">Windows</button>
-    <button class="tab" data-platform="linux">Linux</button>
-  </div>
 
-  <main id="content"></main>
-
-  <!-- Add Command/Category  Modal -->
-  <div id="modal" class="modal hidden">
+  <!-- Add command / category modal -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="addModalTitle" aria-hidden="true">
     <div class="modal-content">
-      <span id="closeModal" class="close">&times;</span>
-      <h2 class="modal-title">Add Command / Category</h2>
-      <div id="backendStatus" class="warning-message"></div>
-      <form id="addForm">
-        <div class="form-group">
-          <select id="platform" required>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-          </select>
+      <button id="closeModal" class="icon-btn close" type="button" aria-label="Close">&times;</button>
+      <h2 id="addModalTitle" class="modal-title">Add command</h2>
+      <p class="modal-subtitle">Save a new command to your local data file.</p>
+      <div id="backendStatus" class="warning-message" role="status"></div>
+      <form id="addForm" class="stack">
+        <div class="form-row">
+          <label class="form-field">
+            <span>Platform</span>
+            <select id="platform" required>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span>Category</span>
+            <input type="text" id="category" placeholder="e.g. Web Clients" required />
+          </label>
         </div>
-        <div class="form-group">
-          <input type="text" id="category" placeholder="Category (e.g., Web Clients)" required />
-        </div>
-        <div class="form-group">
-          <textarea id="command" placeholder="Command" required></textarea>
-        </div>
-        <button type="submit">Add</button>
+        <label class="form-field">
+          <span>Command</span>
+          <textarea id="command" rows="4" placeholder="e.g. curl http://#IP:#PORT/file -o file" required></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Add command</button>
       </form>
     </div>
   </div>
 
-  <!-- Load data -->
-  <script src="data.js"></script>
+  <!-- Delete confirmation modal -->
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-hidden="true">
+    <div class="modal-content modal-sm">
+      <button id="closeConfirmModal" class="icon-btn close" type="button" aria-label="Close">&times;</button>
+      <h2 id="confirmTitle" class="modal-title">Confirm delete</h2>
+      <p id="confirmText" class="confirm-text">Are you sure?</p>
+      <div class="modal-actions">
+        <button id="cancelBtn" class="btn btn-ghost" type="button">Cancel</button>
+        <button id="confirmBtn" class="btn btn-danger" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data.js"></script>
   <script>
     if (typeof DefaultData === "undefined") {
-      var DefaultData = {}; // fallback if data.js is missing
+      var DefaultData = {};
     }
-    
+
     const data = JSON.parse(JSON.stringify(DefaultData));
     let currentPlatform = "windows";
 
-    const content = document.getElementById("content");
-    const searchInput = document.getElementById("search");
-    const clearSearch = document.getElementById("clearSearch");
-    const tabs = document.querySelectorAll(".tab");
-    const themeToggle = document.getElementById("themeToggle");
-    const modal = document.getElementById("modal");
-    const addBtn = document.getElementById("addBtn");
-    const closeModal = document.getElementById("closeModal");
-    const addForm = document.getElementById("addForm");
-    const backendStatus = document.getElementById("backendStatus");
-    const menuToggle = document.getElementById("menuToggle");
-    const sidebar = document.getElementById("sidebar");
-    const closeSidebar = document.getElementById("closeSidebar");
-    const confirmModal = document.getElementById("confirmModal");
-    const confirmText = document.getElementById("confirmText");
-    const cancelBtn = document.getElementById("cancelBtn");
-    const confirmBtn = document.getElementById("confirmBtn");
-    const closeConfirmModal = document.getElementById("closeConfirmModal");
-    
-    // function to copy commands 
-    function copyToClipboard(text) {
-      if (navigator.clipboard && window.isSecureContext) {
-        // Modern API
-        navigator.clipboard.writeText(text).catch(err => {
-          console.error("Clipboard API failed:", err);
-        });
-      } else {
-        // Fallback for older devices/browsers
-        let cptextArea = document.createElement("textarea");
-        cptextArea.value = text;
-        cptextArea.style.position = "fixed";  // Prevent scrolling to bottom
-        cptextArea.style.left = "-9999px";
-        document.body.appendChild(cptextArea);
-        cptextArea.focus();
-        cptextArea.select();
-   
-        try {
-          document.execCommand("copy");
-        } catch (err) {
-          console.error("Fallback copy failed:", err);
-        }    
-        document.body.removeChild(cptextArea);
+    const $ = (id) => document.getElementById(id);
+    const root = document.documentElement;
+
+    const content = $("content");
+    const searchInput = $("search");
+    const clearSearch = $("clearSearch");
+    const tabs = Array.from(document.querySelectorAll(".tab"));
+    const themeToggle = $("themeToggle");
+    const modal = $("modal");
+    const addBtn = $("addBtn");
+    const closeModalBtn = $("closeModal");
+    const addForm = $("addForm");
+    const backendStatus = $("backendStatus");
+    const menuToggle = $("menuToggle");
+    const sidebar = $("sidebar");
+    const closeSidebarBtn = $("closeSidebar");
+    const scrim = $("scrim");
+    const confirmModal = $("confirmModal");
+    const confirmText = $("confirmText");
+    const cancelBtn = $("cancelBtn");
+    const confirmBtn = $("confirmBtn");
+    const closeConfirmModal = $("closeConfirmModal");
+    const toast = $("toast");
+    const statCommands = $("statCommands");
+    const statCategories = $("statCategories");
+
+    const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+    const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+    /* ---------------- theme ---------------- */
+    function applyTheme(theme, persist = true) {
+      const dark = theme === "dark";
+      root.classList.toggle("dark", dark);
+      if (persist) {
+        try { localStorage.setItem("theme", theme); } catch (e) {}
       }
+      themeToggle.setAttribute("aria-pressed", String(dark));
+      themeToggle.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", dark ? "#070406" : "#f7f1f3");
     }
-    
-    // show confirmation pop-up when delete.
-    function showConfirmation(message, onConfirm) {
-      confirmText.innerHTML = message;
-      confirmModal.classList.remove("hidden");
-document
-      const confirmHandler = () => {
-        onConfirm();
-        closeModal();
-      };
+    applyTheme(root.classList.contains("dark") ? "dark" : "light", false);
+    themeToggle.addEventListener("click", () => {
+      applyTheme(root.classList.contains("dark") ? "light" : "dark");
+    });
 
-      function closeModal() {
-        confirmModal.classList.add("hidden");
-        confirmBtn.removeEventListener("click", confirmHandler);
-      }
-
-      confirmBtn.addEventListener("click", confirmHandler);
-      cancelBtn.addEventListener("click", closeModal);
-    }
-
-    // show a toast message
-    function showToast(message, type = "success") {
-      const toast = document.getElementById("toast");
-      if (!toast) return;
-        toast.textContent = message;
-        // Remove any previous type classes
-        toast.className = "toast"; // reset to base
-        // Add type class
-        toast.classList.add(`toast-${type}`);
-        toast.classList.add("show");
-  
-        setTimeout(() => {
-        toast.classList.remove("show");
-        }, 1000);
-    }
-    
-    // escape html special chars
+    /* ---------------- helpers ---------------- */
     function escapeHTML(str) {
-      return str
+      return String(str)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     }
-    
-    // render the main content 
-    function render() {
-      content.innerHTML = "";
-      const searchTerm = searchInput.value.toLowerCase();
-      const platformData = data[currentPlatform] || {};
 
-      for (const [category, commands] of Object.entries(platformData)) {
-        const filtered = commands.filter(cmd =>
-          cmd.toLowerCase().includes(searchTerm) || category.toLowerCase().includes(searchTerm)
-        );
-        if (filtered.length === 0) continue;
+    let toastTimer;
+    function showToast(message, type = "success") {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.className = "toast show toast-" + String(type).toLowerCase();
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
+    }
 
-        const section = document.createElement("section");
-        const title = document.createElement("h2");
-        title.textContent = category;
+    function fallbackCopy(text) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand("copy"); } catch (e) { console.error(e); }
+      document.body.removeChild(ta);
+    }
 
-        const deleteCategoryBtn = document.createElement("button");
-        deleteCategoryBtn.classList.add("delete-category");
-        deleteCategoryBtn.setAttribute("data-category", category);
-        deleteCategoryBtn.textContent = "Delete";
-        title.appendChild(deleteCategoryBtn);
-        section.appendChild(title);
-
-        filtered.forEach(cmd => {
-        const wrapper = document.createElement("div");
-        wrapper.classList.add("code-block");
-        wrapper.innerHTML = `
-          <div class="pre-wrapper">
-            <pre><code>${escapeHTML(cmd)}</code></pre>
-            <div class="action-buttons">
-              <button class="delete" data-category="${category}" data-command="${encodeURIComponent(cmd)}" aria-label="Delete">Delete
-              </button>
-              <button class="copy" aria-label="Copy">
-                <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2
-                    M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        `;
-        section.appendChild(wrapper);
-        });
-        content.appendChild(section);
+    function copyToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
       }
     }
 
-    tabs.forEach(tab => {
+    /* ---------------- confirm modal ---------------- */
+    let confirmHandler = null;
+    function showConfirmation(html, onConfirm) {
+      confirmText.innerHTML = html;
+      confirmModal.classList.remove("hidden");
+      confirmModal.setAttribute("aria-hidden", "false");
+      confirmHandler = () => { closeConfirm(); onConfirm(); };
+      confirmBtn.addEventListener("click", confirmHandler);
+      cancelBtn.focus();
+    }
+    function closeConfirm() {
+      confirmModal.classList.add("hidden");
+      confirmModal.setAttribute("aria-hidden", "true");
+      if (confirmHandler) {
+        confirmBtn.removeEventListener("click", confirmHandler);
+        confirmHandler = null;
+      }
+    }
+    cancelBtn.addEventListener("click", closeConfirm);
+    closeConfirmModal.addEventListener("click", closeConfirm);
+    confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) closeConfirm(); });
+
+    /* ---------------- render ---------------- */
+    function render() {
+      const term = searchInput.value.trim().toLowerCase();
+      const platformData = data[currentPlatform] || {};
+      content.innerHTML = "";
+
+      const allCommands = Object.values(platformData).flat();
+      statCommands.textContent = allCommands.length;
+      statCategories.textContent = Object.keys(platformData).length;
+
+      let visibleCount = 0;
+
+      Object.entries(platformData).forEach(([category, commands]) => {
+        const filtered = (commands || []).filter((cmd) =>
+          cmd.toLowerCase().includes(term) || category.toLowerCase().includes(term)
+        );
+        if (!filtered.length) return;
+        visibleCount += filtered.length;
+
+        const section = document.createElement("section");
+        section.className = "category";
+
+        const head = document.createElement("div");
+        head.className = "category-head";
+
+        const h2 = document.createElement("h2");
+        const dot = document.createElement("span");
+        dot.className = "cat-dot";
+        const name = document.createElement("span");
+        name.className = "cat-name";
+        name.textContent = category;
+        const count = document.createElement("span");
+        count.className = "cat-count";
+        count.textContent = filtered.length;
+        h2.append(dot, name, count);
+
+        const delCat = document.createElement("button");
+        delCat.type = "button";
+        delCat.className = "delete-category";
+        delCat.dataset.category = category;
+        delCat.setAttribute("aria-label", "Delete category " + category);
+        delCat.innerHTML = TRASH_ICON + "<span>Delete category</span>";
+
+        head.append(h2, delCat);
+        section.appendChild(head);
+
+        filtered.forEach((cmd) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "code-block";
+
+          const preWrap = document.createElement("div");
+          preWrap.className = "pre-wrapper";
+
+          const pre = document.createElement("pre");
+          const code = document.createElement("code");
+          code.textContent = cmd;
+          pre.appendChild(code);
+
+          const actions = document.createElement("div");
+          actions.className = "action-buttons";
+
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "delete";
+          del.dataset.category = category;
+          del.dataset.command = encodeURIComponent(cmd);
+          del.title = "Delete command";
+          del.setAttribute("aria-label", "Delete command");
+          del.innerHTML = TRASH_ICON + "<span>Delete</span>";
+
+          const copy = document.createElement("button");
+          copy.type = "button";
+          copy.className = "copy";
+          copy.title = "Copy command";
+          copy.setAttribute("aria-label", "Copy command");
+          copy.innerHTML = COPY_ICON;
+
+          actions.append(del, copy);
+          preWrap.append(pre, actions);
+          wrapper.appendChild(preWrap);
+          section.appendChild(wrapper);
+        });
+
+        content.appendChild(section);
+      });
+
+      if (visibleCount === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.innerHTML =
+          '<div class="empty-icon">' + COPY_ICON + "</div>" +
+          "<h3>No commands found</h3>" +
+          "<p>Try a different search term" + (term ? " than \u201c" + escapeHTML(searchInput.value.trim()) + "\u201d" : "") + ".</p>";
+        content.appendChild(empty);
+      }
+    }
+
+    /* ---------------- tabs / search ---------------- */
+    tabs.forEach((tab) => {
       tab.addEventListener("click", () => {
-        tabs.forEach(t => t.classList.remove("active"));
+        tabs.forEach((t) => {
+          t.classList.remove("active");
+          t.setAttribute("aria-selected", "false");
+        });
         tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
         currentPlatform = tab.dataset.platform;
         render();
       });
     });
-    // set the themeTogle button icon
-    if (localStorage.getItem('theme') === 'dark') {
-        themeToggle.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>';
-    } else {
-      themeToggle.innerHTML = '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>';
+
+    function syncClear() {
+      clearSearch.classList.toggle("visible", searchInput.value.length > 0);
     }
-    // Theme toggle click
-    themeToggle.addEventListener('click', () => {
-      const isDark = document.documentElement.classList.toggle('dark');
-
-      // Save preference
-      localStorage.setItem('theme', isDark ? 'dark' : 'light');
-
-      // Update icon
-      themeToggle.innerHTML = isDark
-        ? '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" /></svg>'
-        : '<svg viewBox="0 0 20 20" fill="currentColor" class="icon-svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" /></svg>';
-    });
-    
-
-    searchInput.addEventListener("input", render);
+    searchInput.addEventListener("input", () => { syncClear(); render(); });
     clearSearch.addEventListener("click", () => {
       searchInput.value = "";
+      syncClear();
+      searchInput.focus();
       render();
     });
-    
-    closeConfirmModal.addEventListener('click', () => {
-      confirmModal.classList.add('hidden');
-    });
-    
+
+    /* ---------------- card actions ---------------- */
     content.addEventListener("click", (e) => {
-      if (e.target.classList.contains("copy")) {
-        const copyBtn = e.target.closest(".copy");
-        const wrapper = copyBtn.closest(".pre-wrapper");
-        const code = wrapper.querySelector("pre code")?.textContent;
-        
+      const copyBtn = e.target.closest(".copy");
+      if (copyBtn) {
+        const code = copyBtn.closest(".pre-wrapper")?.querySelector("pre code")?.textContent;
         if (code) {
           copyToClipboard(code);
-          showToast("Command copied to clipboard!", "success");
+          showToast("Command copied to clipboard", "success");
         }
+        return;
       }
 
-      if (e.target.classList.contains("delete")) {
-        const category = e.target.getAttribute("data-category");
-        const command = decodeURIComponent(e.target.getAttribute("data-command"));
-        const truncatedCommand = command.length > 50 ? command.substring(0, 50) + "..." : command;
-        const message = `Delete command: <code class="highlight-command">${truncatedCommand}</code><br>  From category: <span class="highlight-category">${category}</span> ?`;
-        
+      const delBtn = e.target.closest(".delete");
+      if (delBtn) {
+        const category = delBtn.dataset.category;
+        const command = decodeURIComponent(delBtn.dataset.command || "");
+        const truncated = command.length > 60 ? command.slice(0, 60) + "\u2026" : command;
+        const message =
+          "Delete this command?<br>" +
+          '<code class="highlight-command">' + escapeHTML(truncated) + "</code>" +
+          '<span class="confirm-from">from <span class="highlight-category">' + escapeHTML(category) + "</span></span>";
         showConfirmation(message, () => {
           fetch("http://127.0.0.1:9090/delete.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ platform: currentPlatform, category: category, command: String(command)})
+            body: JSON.stringify({ platform: currentPlatform, category: category, command: command })
           })
-          .then(res => res.json())
-          .then(res => {
-            if (res.success) {
-              showToast("Command deleted.", "Success");
-              setTimeout(() => {
-                location.reload();
-              }, 1000);
-            } else {
-              showToast(res.error, "Error");
-            }
-          })
-          .catch(() => showToast("Backend not running.", "Error"));
-        });      
-      };
-
-      if (e.target.classList.contains("delete-category")) {
-        const category = e.target.getAttribute("data-category");
-        const message = `Delete ENTIRE category: <span class="highlight-category">${category}</span> ? \n This will delete all commands inside. `;
-        
-        showConfirmation(message, () => {
-          fetch("http://127.0.0.1:9090/delete.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ platform: currentPlatform, category })
-          })
-          .then(res => res.json())
-          .then(res => {
-            if (res.success) {
-              showToast("Category deleted.", "Success");
-              setTimeout(() => {
-                location.reload();
-              }, 1000);
-            } else {
-              showToast(res.error, "Error");
-            }
-          })
-          .catch(() => showToast("Backend not running.", "Error"));
+            .then((res) => res.json())
+            .then((res) => {
+              if (res.success) {
+                showToast("Command deleted", "success");
+                setTimeout(() => location.reload(), 900);
+              } else {
+                showToast(res.error || "Could not delete command", "error");
+              }
+            })
+            .catch(() => showToast("Backend not running", "error"));
         });
-      };
+        return;
+      }
 
+      const delCatBtn = e.target.closest(".delete-category");
+      if (delCatBtn) {
+        const category = delCatBtn.dataset.category;
+        const message =
+          "Delete the entire <span class=\"highlight-category\">" + escapeHTML(category) + "</span> category?<br>" +
+          '<span class="confirm-from">This removes all commands inside it.</span>';
+        showConfirmation(message, () => {
+          fetch("http://127.0.0.1:9090/delete.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ platform: currentPlatform, category: category })
+          })
+            .then((res) => res.json())
+            .then((res) => {
+              if (res.success) {
+                showToast("Category deleted", "success");
+                setTimeout(() => location.reload(), 900);
+              } else {
+                showToast(res.error || "Could not delete category", "error");
+              }
+            })
+            .catch(() => showToast("Backend not running", "error"));
+        });
+      }
     });
 
-    addBtn.addEventListener("click", () => {
+    /* ---------------- add modal ---------------- */
+    function openAddModal() {
       modal.classList.remove("hidden");
-      backendStatus.innerHTML = "Checking backend status...";
-
+      modal.setAttribute("aria-hidden", "false");
+      closeModalBtn.focus();
+      backendStatus.className = "warning-message pending";
+      backendStatus.innerHTML = '<span class="status-dot pending"></span> Checking backend status\u2026';
       fetch("http://127.0.0.1:9090/add.php")
-        .then(res => res.ok ? res.json() : Promise.reject())
-        .then(json => {
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then((json) => {
           if (json.status === "online") {
-            backendStatus.innerHTML = `
-              ✅ Backend server is <strong>running</strong>.<br>
-              You can safely add new commands.
-            `;
+            backendStatus.className = "warning-message online";
+            backendStatus.innerHTML = '<span class="status-dot"></span> Backend online \u2014 changes will be saved to <code>data.js</code>.';
           } else {
-            showToast("connection not being established !", "Erorr")
-            throw new Error();
+            throw new Error("offline");
           }
         })
         .catch(() => {
-          backendStatus.innerHTML = `
-            ⚠️ Backend server is not running. Commands won't be saved.<br>
-            Please run:<br>
-            <code>php -S 127.0.0.1:9090</code>
-          `;
+          backendStatus.className = "warning-message offline";
+          backendStatus.innerHTML = '<span class="status-dot"></span> Backend offline \u2014 commands won\u2019t be saved.<br>Run <code>php -S 127.0.0.1:9090</code> and reload.';
         });
-    });
-
-    closeModal.addEventListener("click", () => {
+    }
+    addBtn.addEventListener("click", openAddModal);
+    function closeAddModal() {
       modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
+      addBtn.focus();
+    }
+    closeModalBtn.addEventListener("click", closeAddModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeAddModal();
     });
 
-    modal.addEventListener("click", e => {
-      if (e.target === modal) modal.classList.add("hidden");
-    });
-
-    addForm.addEventListener("submit", e => {
+    addForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const platform = document.getElementById("platform").value;
-      const category = document.getElementById("category").value.trim();
-      const command = document.getElementById("command").value.trim();
+      const platform = $("platform").value;
+      const category = $("category").value.trim();
+      const command = $("command").value.trim();
       if (!platform || !category || !command) return;
 
       fetch("http://127.0.0.1:9090/add.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, category, command })
+        body: JSON.stringify({ platform: platform, category: category, command: command })
       })
-      .then(res => res.json())
-      .then(res => {
-        if (res.status === "Command added") {
-          showToast("Command added successfully.", "Success");
-          setTimeout(() => {
-            location.reload();
-          }, 1000);
-        } else {
-          showToast(res.error, "Error");
-        }
-      })
-      .catch(() => {
-        showToast("Backend not running. Command not saved.", "Error");
-      });
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.status === "Command added") {
+            showToast("Command added", "success");
+            setTimeout(() => location.reload(), 900);
+          } else {
+            showToast(res.error || "Could not add command", "error");
+          }
+        })
+        .catch(() => showToast("Backend not running \u2014 command not saved", "error"));
 
       modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
       addForm.reset();
+      addBtn.focus();
     });
 
-    render();
-    
-
-    menuToggle.addEventListener("click", () => {
+    /* ---------------- sidebar ---------------- */
+    function openSidebar() {
       sidebar.classList.add("visible");
-      sidebar.classList.remove("hidden");
-    });
-
-    closeSidebar.addEventListener("click", () => {
+      scrim.classList.add("show");
+      menuToggle.setAttribute("aria-expanded", "true");
+      closeSidebarBtn.focus();
+    }
+    function closeSidebar() {
       sidebar.classList.remove("visible");
-      sidebar.classList.add("hidden");
-    });
-    
-    window.addEventListener("click", e => {
-    // If sidebar is open and click is outside the sidebar
-      if (sidebar.classList.contains("visible") && !sidebar.contains(e.target) && e.target !== menuToggle) {
-        sidebar.classList.remove("visible");
-        sidebar.classList.add("hidden");
-      }
-    });
+      scrim.classList.remove("show");
+      menuToggle.setAttribute("aria-expanded", "false");
+      menuToggle.focus();
+    }
+    menuToggle.addEventListener("click", openSidebar);
+    closeSidebarBtn.addEventListener("click", closeSidebar);
+    scrim.addEventListener("click", closeSidebar);
 
-
-
-    // Increment port
-    document.getElementById("incPort").addEventListener("click", () => {
-      const portInput = document.getElementById("portInput");
-      const current = parseInt(portInput.value) || 4444;
+    $("incPort").addEventListener("click", () => {
+      const portInput = $("portInput");
+      const current = parseInt(portInput.value, 10) || 4444;
       portInput.value = current + 1;
     });
 
-    // Replace <IP> and <PORT> in all visible code blocks
-    document.getElementById("replaceBtn").addEventListener("click", () => {
-      const ip = document.getElementById("ipInput").value.trim();
-      const port = document.getElementById("portInput").value.trim();
-
+    $("replaceBtn").addEventListener("click", () => {
+      const ip = $("ipInput").value.trim();
+      const port = $("portInput").value.trim();
       if (!ip || !port) {
-        showToast("IP and Port must be filled!", "Error");
+        showToast("Fill in both IP and port first", "error");
         return;
       }
-
-      const codeBlocks = document.querySelectorAll("pre code");
-
-      codeBlocks.forEach(code => {
+      const blocks = document.querySelectorAll("pre code");
+      if (!blocks.length) {
+        showToast("No commands to update", "error");
+        return;
+      }
+      blocks.forEach((code) => {
         const original = code.getAttribute("data-original") || code.textContent;
-        const updated = original.replace(/#IP/g, ip).replace(/#PORT/g, port);
-
-        code.textContent = updated;
-
-        // Save original so we can reset/replace again
+        code.textContent = original.replace(/#IP/g, ip).replace(/#PORT/g, port);
         code.setAttribute("data-original", original);
       });
-
-      showToast("Placeholders replaced!", "Success");
+      showToast("Placeholders replaced", "success");
+      closeSidebar();
     });
 
+    /* ---------------- keyboard ---------------- */
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (!modal.classList.contains("hidden")) closeAddModal();
+        if (!confirmModal.classList.contains("hidden")) closeConfirm();
+        if (sidebar.classList.contains("visible")) closeSidebar();
+        if (document.activeElement === searchInput) searchInput.blur();
+      }
+      const tag = document.activeElement ? document.activeElement.tagName : "";
+      const overlayOpen =
+        !modal.classList.contains("hidden") ||
+        !confirmModal.classList.contains("hidden") ||
+        sidebar.classList.contains("visible");
+      if (e.key === "/" && !overlayOpen && !/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+      }
+    });
+
+    syncClear();
+    render();
   </script>
 </body>
 </html>
