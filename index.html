@@ -83,7 +83,7 @@
       <span class="sidebar-title">Transfer tools</span>
       <button id="closeSidebar" class="icon-btn close-sidebar" type="button" aria-label="Close tools menu">&times;</button>
     </div>
-    <p class="sidebar-desc">Fill in the target IP and port, then apply them to every visible command.</p>
+    <p class="sidebar-desc">Fill in the target IP and PORT, then apply them to every visible command.</p>
 
     <div id="ipPortForm" class="ip-port-form">
       <label class="field-group">
@@ -97,12 +97,25 @@
           <button id="incPort" class="inc-btn" type="button" aria-label="Increase port by one">+1</button>
         </span>
       </label>
+      <details id="advancedPlaceholders" class="advanced-placeholders">
+        <summary>
+          <span class="advanced-title">
+            <svg class="advanced-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h8M16 7h4M4 17h4M12 17h8"/><circle cx="14" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+            <span>Advanced</span>
+            <span id="advancedCount" class="advanced-count">0</span>
+          </span>
+          <svg class="advanced-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </summary>
+        <div class="advanced-content">
+          <div id="extraFields" class="extra-fields"></div>
+        </div>
+      </details>
       <button id="replaceBtn" class="btn btn-primary" type="button">Replace placeholders</button>
     </div>
 
     <div class="sidebar-tip">
       <strong>Placeholders</strong>
-      <span>Commands use <code>#IP</code> and <code>#PORT</code>.</span>
+      <span>Commands use <code>#IP</code> and <code>#PORT</code>. More placeholders are under Advanced.</span>
     </div>
   </aside>
 
@@ -185,6 +198,33 @@
     const toast = $("toast");
     const statCommands = $("statCommands");
     const statCategories = $("statCategories");
+    const extraFields = $("extraFields");
+    const extraInputs = new Map();
+    const advancedCount = $("advancedCount");
+
+    const PLACEHOLDER_RE = /#([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_])/g;
+    const WIDE_PLACEHOLDER_NAMES = new Set(["PATHTOSHARE", "PATHTODEST"]);
+    const PLACEHOLDER_ORDER = ["USERNAME", "PASSWORD", "FILE", "SHARENAME", "PATHTOSHARE", "PATHTODEST", "DRIVELETTER", "JOBNAME"];
+    const PLACEHOLDER_LABELS = {
+      PATHTOSHARE: "Path to share",
+      PATHTODEST: "Path to destination",
+      SHARENAME: "Share name",
+      DRIVELETTER: "Drive letter",
+      USERNAME: "Username",
+      PASSWORD: "Password",
+      JOBNAME: "Job name",
+      FILE: "File name"
+    };
+    const PLACEHOLDER_EXAMPLES = {
+      USERNAME: "admin",
+      PASSWORD: "P@ss",
+      FILE: "file.txt",
+      SHARENAME: "share",
+      PATHTOSHARE: "\\Share",
+      PATHTODEST: "\\Destination",
+      DRIVELETTER: "Z",
+      JOBNAME: "job1"
+    };
 
     const COPY_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
     const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -207,6 +247,67 @@
     });
 
     /* ---------------- helpers ---------------- */
+    function collectPlaceholders(source) {
+      const found = new Set();
+      const visit = (value) => {
+        if (typeof value === "string") {
+          value.replace(PLACEHOLDER_RE, (match, name) => {
+            found.add(name);
+            return match;
+          });
+        } else if (Array.isArray(value)) {
+          value.forEach(visit);
+        } else if (value && typeof value === "object") {
+          Object.values(value).forEach(visit);
+        }
+      };
+      visit(source);
+      return Array.from(found);
+    }
+
+    function placeholderLabel(name) {
+      return PLACEHOLDER_LABELS[name] || name.toLowerCase().replace(/_/g, " ");
+    }
+
+    function buildPlaceholderFields() {
+      const orderOf = (name) => {
+        const index = PLACEHOLDER_ORDER.indexOf(name);
+        return index === -1 ? PLACEHOLDER_ORDER.length : index;
+      };
+      const names = collectPlaceholders(data)
+        .filter((name) => name !== "IP" && name !== "PORT")
+        .sort((a, b) => orderOf(a) - orderOf(b) || a.localeCompare(b));
+
+      if (!names.length) {
+        const details = extraFields.closest("details");
+        if (details) details.hidden = true;
+        return;
+      }
+
+      advancedCount.textContent = String(names.length);
+
+      names.forEach((name) => {
+        const group = document.createElement("label");
+        group.className = "field-group";
+        if (WIDE_PLACEHOLDER_NAMES.has(name)) group.dataset.wide = "true";
+
+        const label = document.createElement("span");
+        label.className = "field-label";
+        label.textContent = placeholderLabel(name);
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.autocomplete = "off";
+        input.spellcheck = false;
+        input.placeholder = PLACEHOLDER_EXAMPLES[name] || "e.g. value";
+        input.dataset.placeholder = name;
+
+        group.append(label, input);
+        extraFields.appendChild(group);
+        extraInputs.set(name, input);
+      });
+    }
+
     function escapeHTML(str) {
       return String(str)
         .replace(/&/g, "&amp;")
@@ -547,6 +648,16 @@
         showToast("Fill in both IP and port first", "error");
         return;
       }
+
+      const values = new Map([
+        ["IP", ip],
+        ["PORT", port]
+      ]);
+      extraInputs.forEach((input, name) => {
+        const value = input.value.trim();
+        if (value) values.set(name, value);
+      });
+
       const blocks = document.querySelectorAll("pre code");
       if (!blocks.length) {
         showToast("No commands to update", "error");
@@ -554,7 +665,9 @@
       }
       blocks.forEach((code) => {
         const original = code.getAttribute("data-original") || code.textContent;
-        code.textContent = original.replace(/#IP/g, ip).replace(/#PORT/g, port);
+        code.textContent = original.replace(PLACEHOLDER_RE, (match, name) =>
+          values.has(name) ? values.get(name) : match
+        );
         code.setAttribute("data-original", original);
       });
       showToast("Placeholders replaced", "success");
@@ -581,6 +694,7 @@
       }
     });
 
+    buildPlaceholderFields();
     syncClear();
     render();
   </script>

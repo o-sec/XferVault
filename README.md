@@ -36,6 +36,8 @@ use the xfervault webapp at [https://xfervault.github.com/](https://xfervault.gi
 
 <img src="screenshots/sidebar.png" >
 
+<img src="screenshots/sidebar-advanced.png" >
+
 <img src="screenshots/dark-theme.png" >
 
 <img src="screenshots/sidebar-dark.png" >
