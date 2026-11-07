@@ -55,7 +55,7 @@ use the xfervault webapp at [https://xfervault.github.com/](https://xfervault.gi
 1. **Clone the repository**
 
 ```shell
-git clone https://github.com/yourusername/XferVault.git
+git clone https://github.com/o-sec/XferVault.git
 cd XferVault
 ```
 
